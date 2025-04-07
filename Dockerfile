@@ -3,6 +3,7 @@ FROM ubuntu:20.04
 # Cập nhật và cài đặt các gói cần thiết, bao gồm ubuntudde-dde, VNC và XRDP
 RUN apt update && apt install -y software-properties-common && \
     add-apt-repository -y ppa:ubuntudde-dev/stable && \
+    DEBIAN_FRONTEND=noninteractive apt install -y dde-session-ui && \
     DEBIAN_FRONTEND=noninteractive apt install -y ubuntudde-dde \
     xrdp locales sudo tigervnc-standalone-server ubuntudde-dde-extras python3-pip
 
