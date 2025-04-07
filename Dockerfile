@@ -1,4 +1,4 @@
-FROM ubuntu:impish-20220404
+FROM ubuntu:20.04
 
 # Cập nhật và cài đặt các gói cần thiết, bao gồm ubuntudde-dde, VNC và XRDP
 RUN apt update && apt install -y software-properties-common && \
