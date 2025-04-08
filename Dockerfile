@@ -1,44 +1,49 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
+ADD ./wubuntu.tar /
 
-ENV DEBIAN_FRONTEND=noninteractive
+ARG USER=testuser
+ARG PASS=1234
 
-# Cài Budgie Desktop
-RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y ubuntu-budgie-desktop
+RUN apt update && \
+    DEBIAN_FRONTEND=noninteractive apt install -y \
+    locales sudo xrdp tigervnc-standalone-server \
+    novnc websockify && \
+    adduser xrdp ssl-cert && \
+    locale-gen en_US.UTF-8 && \
+    update-locale LANG=en_US.UTF-8
 
-# Cài XRDP và thêm user vào nhóm ssl-cert
-RUN apt install -y xrdp && adduser xrdp ssl-cert
+RUN sed -i 's#Exec=.*google-chrome.* #Exec=/usr/bin/google-chrome --no-sandbox --disable-gpu --disable-software-rasterizer --disable-dev-shm-usage #g' /usr/share/applications/* /home/$USER/.local/share/applications/* && \
+    sed -i 's#Exec=.*microsoft-edge.* #Exec=/usr/bin/microsoft-edge --no-sandbox --disable-gpu --disable-software-rasterizer --disable-dev-shm-usage #g' /usr/share/applications/* /home/$USER/.local/share/applications/*
 
-# Tạo user testuser và cấp quyền sudo
-RUN useradd -m testuser -p $(openssl passwd 1234) && \
-    usermod -aG sudo testuser
+RUN echo "#!/bin/sh\n\
+export XDG_SESSION_DESKTOP=KDE\n\
+export XDG_SESSION_TYPE=x11\n\
+export XDG_CURRENT_DESKTOP=KDE\n\
+export XDG_CONFIG_DIRS=/home/agiledevart/.config/kdedefaults:/etc/xdg/xdg-plasma:/etc/xdg:/usr/share/kubuntu-default-settings/kf5-settings\n\
+exec dbus-run-session -- startplasma-x11" > /xstartup && chmod +x /xstartup
 
-#####################
-# Budgie panel (fix)
-#####################
-RUN sed -i '3 a echo "\
-budgie-panel & budgie-wm --x11 & plank" > ~/.Xsession' /etc/xrdp/startwm.sh
+RUN mkdir /home/$USER/.vnc && \
+    echo $PASS | vncpasswd -f > /home/$USER/.vnc/passwd && \
+    chmod 0600 /home/$USER/.vnc/passwd && \
+    chown -R $USER:$USER /home/$USER/.vnc
 
-RUN sed -i '3 a echo "\
-export XDG_SESSION_DESKTOP=budgie-desktop\\n\
-export XDG_SESSION_TYPE=x11\\n\
-export XDG_CURRENT_DESKTOP=Budgie:GNOME\\n\
-export XDG_CONFIG_DIRS=/etc/xdg/xdg-budgie-desktop:/etc/xdg\\n\
-" > ~/.xsessionrc' /etc/xrdp/startwm.sh
+RUN cp -f /xstartup /etc/xrdp/startwm.sh && \
+    cp -f /xstartup /home/$USER/.vnc/xstartup
 
-# Cài TigerVNC và thiết lập mật khẩu VNC cho testuser
-RUN apt install -y tigervnc-standalone-server novnc websockify && \
-    mkdir -p /home/testuser/.vnc && \
-    echo "1234" | vncpasswd -f > /home/testuser/.vnc/passwd && \
-    chown -R testuser:testuser /home/testuser/.vnc && \
-    chmod 600 /home/testuser/.vnc/passwd
+RUN echo "#!/bin/sh\n\
+sudo -u $USER -g $USER -- vncserver -rfbport 5902 -geometry 1920x1080 -depth 24 -verbose -localhost no -autokill no" > /startvnc && chmod +x /startvnc
 
-# Expose cổng RDP và noVNC
-EXPOSE 3389 8080
+# Script to start noVNC
+RUN echo "#!/bin/sh\n\
+/usr/share/novnc/utils/websockify/run --web=/usr/share/novnc/ 8080 localhost:5902" > /startnovnc && chmod +x /startnovnc
 
-# CMD: khởi chạy dbus, XRDP, VNC server, và noVNC
+EXPOSE 3389
+EXPOSE 5902
+EXPOSE 8080
+
 CMD service dbus start; \
     /usr/lib/systemd/systemd-logind & \
     service xrdp start; \
-    su - testuser -c "vncserver :1"; \
-    websockify --web=/usr/share/novnc/ 8080 localhost:5901; \
+    /startvnc & \
+    /startnovnc & \
     bash
