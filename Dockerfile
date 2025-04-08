@@ -1,4 +1,4 @@
-FROM ubuntu:impish-20220128
+FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
