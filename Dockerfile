@@ -1,13 +1,11 @@
-FROM ubuntu:22.04
+FROM ubuntu:jammy-20231211.1
 ADD ./wubuntu.tar /
 
 ARG USER=testuser
 ARG PASS=1234
 
 RUN apt update && \
-    DEBIAN_FRONTEND=noninteractive apt install -y \
-    locales sudo xrdp tigervnc-standalone-server \
-    novnc websockify && \
+    DEBIAN_FRONTEND=noninteractive apt install -y locales sudo xrdp tigervnc-standalone-server && \
     adduser xrdp ssl-cert && \
     locale-gen en_US.UTF-8 && \
     update-locale LANG=en_US.UTF-8
@@ -33,17 +31,7 @@ RUN cp -f /xstartup /etc/xrdp/startwm.sh && \
 RUN echo "#!/bin/sh\n\
 sudo -u $USER -g $USER -- vncserver -rfbport 5902 -geometry 1920x1080 -depth 24 -verbose -localhost no -autokill no" > /startvnc && chmod +x /startvnc
 
-# Script to start noVNC
-RUN echo "#!/bin/sh\n\
-/usr/share/novnc/utils/websockify/run --web=/usr/share/novnc/ 8080 localhost:5902" > /startnovnc && chmod +x /startnovnc
-
 EXPOSE 3389
 EXPOSE 5902
-EXPOSE 8080
 
-CMD service dbus start; \
-    /usr/lib/systemd/systemd-logind & \
-    service xrdp start; \
-    /startvnc & \
-    /startnovnc & \
-    bash
+CMD service dbus start; /usr/lib/systemd/systemd-logind & service xrdp start; /startvnc; bash
